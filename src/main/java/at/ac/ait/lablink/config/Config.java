@@ -8,26 +8,10 @@ package at.ac.ait.lablink.config;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-
-import org.apache.commons.cli.BasicParser;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import org.python.core.PyObject;
-import org.python.util.PythonInterpreter;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -40,7 +24,18 @@ import java.text.MessageFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Scanner;
+import org.apache.commons.cli.BasicParser;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.python.core.PyObject;
+import org.python.util.PythonInterpreter;
 
 /**
  * This class implements the Lablink Configuration Server.
@@ -54,14 +49,14 @@ public class Config extends Thread {
   private int port;
 
   /** The Constant USAGE. */
-  private static final String USAGE =
-      "-a [run|add|update|delete|blank] [-d <path>] [-p <port>] -k <key> -v <value> | -h ]";
+  private static final String USAGE = "-a [run|list|summary|add|update|delete|blank] "
+      + "[-d <path>] [-p <port>] -k <key> -v <value> | -h ]";
 
   /** The Constant LOG. */
   static final Logger LOG = LogManager.getLogger("LablinkConfig"); // LogManager.getRootLogger();
 
   /** The Constant DEFAULT_DB. */
-  private static final String DEFAULT_DB = "C:/workbench/config_dbs/configurations.db";
+  private static final String DEFAULT_DB = "configurations.db";
 
   /** The Constant DEFAULT_CONFIG_COL. */
   private static final String DEFAULT_CONFIG_COL = "config";
@@ -83,17 +78,14 @@ public class Config extends Thread {
       "SELECT identifier, description, IFNULL(invoke, 'null') as token"
           + " FROM LablinkConfigSimple ORDER BY 1";
 
-  static final String LOGO_PATH = Config.class.getResource("/logo.png").getPath();
+  public static final String LOGO_PATH = Config.class.getResource("/logo.png").getPath();
   static final String HTML_PAGE_TITLE = "AIT Lablink Simulation Configuration Viewer";
 
   /** The web server. */
   private static HttpServer webServer;
 
-  /** The db conn. */
-  private static Connection dbConn;
-
   /**
-   * Instantiates a new sim config.
+   * Instantiates a new Lablink configuration server instance.
    *
    * @throws IOException Signals that an I/O exception has occurred.
    */
@@ -122,7 +114,7 @@ public class Config extends Thread {
   }
 
   /**
-   * Execute python.
+   * Execute Python.
    *
    * @param token the token
    * @param script the script
@@ -145,6 +137,7 @@ public class Config extends Thread {
           MessageFormat.format("cfg = config.{0}()", new Object[] {tokens[2]});
 
       try {
+        // TODO: Move the header script here and leave only the custom part
         python.exec(script);
         python.exec(pythonClassInstance);
         python.exec(pythonMethodInstance);
@@ -161,6 +154,9 @@ public class Config extends Thread {
 
         ex.printStackTrace();
       }
+
+      python.cleanup();
+      python.close();
     }
 
     return results;
@@ -240,6 +236,7 @@ public class Config extends Thread {
    * @return the string
    */
   public static String fixedLen(String field, int len) {
+    // Return field + String.
     return String.format("%-" + len + "s", field);
   }
 
@@ -283,14 +280,24 @@ public class Config extends Thread {
     Integer counter = 0;
     MessageFormat fmt = new MessageFormat("|{0}|{1}|{2}|{3}\n{5}\n{4}{5}");
 
-    String line = "+" + repeate("-", 3) + "+" + repeate("-", 10) + "+" + repeate("-", 35) + "+"
+    String line = "+"
+        + repeate("-", 3)
+        + "+"
+        + repeate("-", 10)
+        + "+"
+        + repeate("-", 35)
+        + "+"
         + repeate("-", 20);
 
     System.out.println("+" + repeate("-", 90) + "+");
     System.out.println("|" + fixedLen(title, 90) + "|");
 
     System.out.println(line);
-    System.out.println("|S.#|Key" + repeate(" ", 27) + "|Invoke" + repeate(" ", 29) + "|Description"
+    System.out.println("|S.#|Key"
+        + repeate(" ", 27)
+        + "|Invoke"
+        + repeate(" ", 29)
+        + "|Description"
         + repeate(" ", 10));
     System.out.println(line);
 
@@ -300,9 +307,95 @@ public class Config extends Thread {
 
       counter++;
 
-      System.out.println(fmt.format(new Object[] {fixedLen(counter.toString(), 3),
-          fixedLen(rs.getString("identifier"), 30), fixedLen(rs.getString("token"), 35),
-          rs.getString("description"), rs.getString("config"), line}));
+      System.out.println(
+          fmt.format(
+              new Object[] {
+                fixedLen(counter.toString(), 3),
+                fixedLen(rs.getString("identifier"), 30),
+                fixedLen(rs.getString("token"), 35),
+                rs.getString("description"),
+                rs.getString("config"),
+                line
+              }
+          )
+      );
+    }
+
+    System.out.println(counter + " record(s) listed.");
+  }
+
+  /**
+   * List configs.
+   *
+   * @param conn the conn
+   * @param key the key
+   * @param title the title
+   * @throws SQLException the SQL exception
+   */
+  public static void summaryConfigs(Connection conn, String key, String title) throws SQLException {
+
+    String sql = "SELECT identifier, description, IFNULL(invoke, 'null') as token"
+        + " FROM LablinkConfigSimple ";
+
+    boolean hasKey = org.apache.commons.lang3.StringUtils.isNotBlank(key);
+
+    if (hasKey) {
+      LOG.debug("Listing only configuration(s) for key='{}'", key);
+      sql += " WHERE identifier=?";
+    } else {
+      LOG.debug("Listing ALL configurations stored in the database.");
+    }
+
+    sql += " ORDER BY identifier ";
+
+    // LOG.debug("Executing SQL {}", sql);
+    PreparedStatement qry = conn.prepareStatement(sql);
+
+    if (hasKey) {
+      qry.setString(1, key);
+    }
+
+    Integer counter = 0;
+    MessageFormat fmt = new MessageFormat("|{0}|{1}|{2}|{3}\n{4}");
+
+    String line = "+"
+        + repeate("-", 3)
+        + "+"
+        + repeate("-", 27)
+        + "+"
+        + repeate("-", 29)
+        + "+"
+        + repeate("-", 50);
+
+    System.out.println("+" + repeate("-", 111) + "+");
+    System.out.println("|" + fixedLen(title, 111) + "|");
+
+    System.out.println(line);
+    System.out.println("|S.#|Key"
+        + repeate(" ", 27)
+        + "|Invoke"
+        + repeate(" ", 29)
+        + "|Description"
+        + repeate(" ", 50));
+    System.out.println(line);
+
+    ResultSet rs = qry.executeQuery();
+
+    while (rs.next()) {
+
+      counter++;
+
+      System.out.println(
+          fmt.format(
+              new Object[] {
+                fixedLen(counter.toString(), 3),
+                fixedLen(rs.getString("identifier"), 27),
+                fixedLen(rs.getString("token"), 29),
+                fixedLen(rs.getString("description"), 50),
+                line
+              }
+          )
+      );
     }
 
     System.out.println(counter + " record(s) listed.");
@@ -346,9 +439,10 @@ public class Config extends Thread {
       } else {
         sql = "UPDATE LablinkConfigSimple SET config=? WHERE identifier=?";
         qry = conn.prepareStatement(sql);
-        URL infile = new URL(newval);
 
-        qry.setString(1, new Scanner(infile.openStream()).useDelimiter("\\Z").next());
+        String config = getFileContents(newval);
+
+        qry.setString(1, config);
         qry.setString(2, key);
       }
 
@@ -356,7 +450,6 @@ public class Config extends Thread {
 
       Config.listConfigs(conn, key, "NEW Values");
       commitAndClose(conn);
-
     }
     return true;
   }
@@ -496,8 +589,11 @@ public class Config extends Thread {
       return false;
     } else {
       LOG.info("A Blank database has been created at '{}'. Now creating tables..", db);
-      String sql = "CREATE TABLE \"LablinkConfigSimple\" (" + " `identifier` TEXT NOT NULL UNIQUE,"
-          + " `config` TEXT NOT NULL," + " `invoke` TEXT," + " `description` TEXT NOT NULL,"
+      String sql = "CREATE TABLE \"LablinkConfigSimple\" ("
+          + " `identifier` TEXT NOT NULL UNIQUE,"
+          + " `config` TEXT NOT NULL,"
+          + " `invoke` TEXT,"
+          + " `description` TEXT NOT NULL,"
           + " PRIMARY KEY(`identifier`) )";
       PreparedStatement qry = conn.prepareStatement(sql);
 
@@ -650,7 +746,7 @@ public class Config extends Thread {
         config += MessageFormat.format(
             "<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td><a href=view?id={1}>VIEW</a>,&nbsp;<a href=get?id={1}>GET</a></td></tr>\n",
             new Object[] {ii++, id, rs.getString("description"), rs.getString("token")}
-            );
+        );
       }
     } catch (SQLException ex) {
       ex.printStackTrace();
@@ -665,7 +761,9 @@ public class Config extends Thread {
 
     return (config.equals("") ? null
         : "<table border=1><tr><th>S#</th><th>ID</th><th>Description</th>"
-            + "<th>Invoke</th><th>Action</th></tr>\n" + config + "</table>\n");
+            + "<th>Invoke</th><th>Action</th></tr>\n"
+            + config
+            + "</table>\n");
   }
 
   /**
@@ -685,9 +783,11 @@ public class Config extends Thread {
       ResultSet rs = pstmt.executeQuery();
       while (rs.next()) {
         if (type == 1) {
-          config = "<h3>Description:" + rs.getString("description")
+          config = "<h3>Description:"
+              + rs.getString("description")
               + "</h3><br><textarea rows='40' style='width:80%';>"
-              + rs.getString(DEFAULT_CONFIG_COL) + "</textarea><br/>";
+              + rs.getString(DEFAULT_CONFIG_COL)
+                  + "</textarea><br/>";
         } else if (type == 2) {
           config = rs.getString(DEFAULT_CONFIG_COL);
           if (!rs.getString("token").equals(new String("null"))) {
@@ -695,8 +795,11 @@ public class Config extends Thread {
           }
 
         } else if (type == 3) {
-          config += "<tr><td><a href=view?id=" + rs.getString("identifier") + "</a></td><td>"
-              + rs.getString("description") + "</td>/tr>";
+          config += "<tr><td><a href=view?id="
+              + rs.getString("identifier")
+              + "</a></td><td>"
+              + rs.getString("description")
+              + "</td>/tr>";
         } else {
           LOG.error("Invalid ID={}", id);
         }
@@ -841,15 +944,15 @@ public class Config extends Thread {
       System.exit(0);
     }
 
-    String db = commandLine.getOptionValue('d');
-    String key = commandLine.getOptionValue('k');
-    String value = commandLine.getOptionValue('v');
-    String note = commandLine.getOptionValue('n');
-    String invoke = commandLine.getOptionValue('i');
+    String db = commandLine.getOptionValue('d', null);
+    String key = commandLine.getOptionValue('k', null);
+    String value = commandLine.getOptionValue('v', null);
+    String note = commandLine.getOptionValue('n', null);
+    String invoke = commandLine.getOptionValue('i', null);
+
     int port = Integer.parseInt(commandLine.getOptionValue('p', "10101"));
 
     switch (action) {
-
       case "run":
         LOG.info("Executing action 'run'.");
         Config server = null;
@@ -867,7 +970,8 @@ public class Config extends Thread {
 
       case "update":
         LOG.info("Executing action 'update'...");
-        if (!commandLine.hasOption('d') || !commandLine.hasOption('k')
+        if (!commandLine.hasOption('d')
+            || !commandLine.hasOption('k')
             || !commandLine.hasOption('v')) {
           System.out.println("Not all the necessary parameters were provided:");
           System.out.println("usage");
@@ -884,15 +988,16 @@ public class Config extends Thread {
         Config.actionUpdate(db, key, value, note, invoke);
         break;
 
-
       case "add":
         LOG.info("Executing action 'add'.");
-        if (!commandLine.hasOption('d') || !commandLine.hasOption('k')
-            || !commandLine.hasOption('v') || !commandLine.hasOption('n')) {
+        if (!commandLine.hasOption('d')
+            || !commandLine.hasOption('k')
+            || !commandLine.hasOption('v')
+            || !commandLine.hasOption('n')) {
           System.out.println("Not all the necessary parameters were provided:");
           System.out.println("usage");
-          System.out
-              .println("<executable.jar> -a add -d database -k key -v newvalue -n description");
+          System.out.println(
+              "<executable.jar> -a add -d database -k key -v newvalue -n description");
           System.exit(0);
         }
 
@@ -953,11 +1058,23 @@ public class Config extends Thread {
 
         Config.listConfigs(getDbConnection(db), key, "Stored configurations");
         break;
+
+      case "summary":
+        LOG.info("Executing action 'summary'.");
+        if (!commandLine.hasOption('d')) {
+          System.out.println("Not all the necessary parameters were provided:");
+          System.out.println("usage");
+          System.out.println("<executable.jar> -a summary -d database [-k key]");
+          System.exit(0);
+        }
+
+        Config.summaryConfigs(getDbConnection(db), key, "Summary of stored configurations");
+        break;
+
       default:
         System.out.println("The action '" + action + "' is not supported");
         System.exit(0);
         break;
-
     }
   }
 
@@ -973,6 +1090,8 @@ public class Config extends Thread {
   }
 
   /**
+   * Run the config server.
+   *
    * @see java.lang.Thread#run()
    */
   @Override
@@ -985,16 +1104,18 @@ public class Config extends Thread {
     }
   }
 
-
   /**
    * The Class GetHandler.
    */
   class GetHandler implements HttpHandler {
 
     /**
+     * Handle exceptions.
+     *
      * @see com.sun.net.httpserver.HttpHandler#handle(com.sun.net.httpserver.HttpExchange)
      */
     @SuppressWarnings("restriction")
+    @Override
     public void handle(HttpExchange httpStream) throws IOException {
       StringBuilder response = new StringBuilder();
       Map<String, String> parms = queryToMap(httpStream.getRequestURI().getQuery());
@@ -1015,15 +1136,17 @@ public class Config extends Thread {
     }
   }
 
-
   /**
    * The Class ViewHandler.
    */
   class ViewHandler implements HttpHandler {
 
     /**
+     * Handle exceptions.
+     *
      * @see com.sun.net.httpserver.HttpHandler#handle(com.sun.net.httpserver.HttpExchange)
      */
+    @Override
     public void handle(HttpExchange httpExchange) throws IOException {
       StringBuilder response = new StringBuilder();
       String id = "Error: no id provided";
@@ -1065,23 +1188,25 @@ public class Config extends Thread {
     }
   }
 
-
   /**
    * The Class ViewHandler.
    */
   class ViewAllHandler implements HttpHandler {
 
     /**
+     * Handle exceptions.
+     *
      * @see com.sun.net.httpserver.HttpHandler#handle(com.sun.net.httpserver.HttpExchange)
      */
+    @Override
     public void handle(HttpExchange httpExchange) throws IOException {
       StringBuilder response = new StringBuilder();
 
-      String htmlHeader = "<html>\n<head><title>{0}</title></head>\n"
-          + "<body>\n<h1><img src=\"{2}\">{0}</h1><h2>{1}</h2>\n";
-      response.append(MessageFormat.format(
-          htmlHeader,
-          new Object[] {HTML_PAGE_TITLE, "Stored Configurations", LOGO_PATH}));
+      response.append(
+          MessageFormat.format(
+              "<html>\n<head><title>{0}</title></head>"
+                  + "\n<body>\n<h1><img src=\"{2}\">{0}</h1><h2>{1}</h2>\n",
+              new Object[] {HTML_PAGE_TITLE, "Stored Configurations", LOGO_PATH}));
 
       String config = viewAllConfig();
       if (config == null) {
@@ -1097,10 +1222,6 @@ public class Config extends Thread {
 
       Config.LOG.info("Configuration VIEW ALL request served to the client at '{}'.",
           httpExchange.getRemoteAddress().getAddress().toString());
-
     }
-
-
   }
-
 }
