@@ -7,56 +7,98 @@
   <groupId>at.ac.ait.lablink</groupId>
   <artifactId>config</artifactId>
   <version>0.1.0</version>
-  <name>lablink-config-server</name>
-
+  <name>AIT Lablink configuration server</name>
+  <description>The Lablink Configuration Server runs as an HTTP server and provides the basic editing facilities for configuration metadata.</description>
   <url>https://github.com/AIT-Lablink/lablink-config-server</url>
 
-  <description>The Lablink Configuration Server runs as an HTTP server and provides the basic editing facilities for configuration metadata.</description>
-
-  <organization>
-
-    <name>AIT Austrian Institute of Technology</name>
-    <url>https://www.ait.ac.at</url>
-
-  </organization>
+  <licenses>
+    <license>
+      <name>Lablink license</name>
+      <url>https://ait-lablink.readthedocs.io/en/latest/availability.html#lablink-license</url>
+    </license>
+  </licenses>
 
   <developers>
-
     <developer>
-      <id>kazmij</id>
       <name>Jawad Kazmi</name>
       <email>jawad.kazmi@ait.ac.at</email>
-      <properties>
-        <active>true</active>
-      </properties>
+      <organization>AIT Austrian Institute of Technology</organization>
+      <organizationUrl>https://www.ait.ac.at</organizationUrl>
     </developer>
-
+    <developer>
+      <name>Edmund Widl</name>
+      <email>edmund.widl@ait.ac.at</email>
+      <organization>AIT Austrian Institute of Technology</organization>
+      <organizationUrl>https://www.ait.ac.at</organizationUrl>
+    </developer>
   </developers>
 
-  <properties>
+  <scm>
+    <connection>scm:git:https://github.com/AIT-Lablink/lablink-config-server.git</connection>
+    <developerConnection>scm:git:https://github.com/AIT-Lablink/lablink-config-server.git</developerConnection>
+    <url>http://github.com/AIT-Lablink/lablink-config-server/tree/main</url>
+  </scm>
 
+  <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <java.version>1.8</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <junit.version>5.5.2</junit.version>
-
   </properties>
 
   <distributionManagement>
-
-    <repository>
-      <id>github</id>
-      <name>GitHub AIT-Lablink Apache Maven Packages</name>
-      <url>https://maven.pkg.github.com/ait-lablink/lablink-config-server</url>
-    </repository>
-
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
   </distributionManagement>
 
   <build>
 
     <plugins>
+
+      <plugin>
+        <groupId>org.sonatype.plugins</groupId>
+        <artifactId>nexus-staging-maven-plugin</artifactId>
+        <version>1.6.7</version>
+        <extensions>true</extensions>
+        <configuration>
+          <serverId>ossrh</serverId>
+          <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+          <autoReleaseAfterClose>false</autoReleaseAfterClose>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+        <version>1.5</version>
+        <executions>
+          <execution>
+            <id>sign-artifacts</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>sign</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>2.2.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
