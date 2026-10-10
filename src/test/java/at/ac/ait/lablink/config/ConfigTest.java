@@ -75,6 +75,14 @@ public class ConfigTest {
         "Should fail if the logo.png is missing.");
   }
 
+  @DisplayName("Logo img src is an HTTP path, not a jar file URL")
+  @Test
+  public void testLogoPathIsServedOverHttp() {
+    assertEquals("/logo.png", Config.LOGO_PATH);
+    assertFalse(Config.LOGO_PATH.startsWith("file:"),
+        "A jar file URL cannot be loaded by the browser.");
+  }
+
   // @Test
   // public void testIfTheLogoExistsRoot() {
   // assertFalse(getClass().getResource("/resources/logo.png") == null,

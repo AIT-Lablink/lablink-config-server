@@ -8,8 +8,10 @@ package at.ac.ait.lablink.config;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +80,8 @@ public class Config extends Thread {
       "SELECT identifier, description, IFNULL(invoke, 'null') as token"
           + " FROM LablinkConfigSimple ORDER BY 1";
 
-  public static final String LOGO_PATH = Config.class.getResource("/logo.png").getPath();
+  /** Browser path for the logo. A classpath or jar URL cannot be used as an img src. */
+  public static final String LOGO_PATH = "/logo.png";
   static final String HTML_PAGE_TITLE = "AIT Lablink Simulation Configuration Viewer";
 
   /** The web server. */
@@ -669,6 +672,7 @@ public class Config extends Thread {
     webServer = HttpServer.create(new InetSocketAddress(this.getPort()), 0);
     webServer.createContext("/view", new ViewHandler());
     webServer.createContext("/get", new GetHandler());
+    webServer.createContext(LOGO_PATH, new LogoHandler());
     webServer.createContext("/", new ViewAllHandler());
 
     webServer.setExecutor(null); // creates a default executor
@@ -1101,6 +1105,45 @@ public class Config extends Thread {
       webServer.start();
     } catch (IOException ex) {
       LOG.error("Error while executing run {}.", ex.getMessage());
+    }
+  }
+
+  /**
+   * Serves logo.png from the classpath so viewer pages can load it over HTTP.
+   */
+  class LogoHandler implements HttpHandler {
+
+    /**
+     * Handle exceptions.
+     *
+     * @see com.sun.net.httpserver.HttpHandler#handle(com.sun.net.httpserver.HttpExchange)
+     */
+    @Override
+    public void handle(HttpExchange httpExchange) throws IOException {
+      try (InputStream logo = Config.class.getResourceAsStream(LOGO_PATH)) {
+        if (logo == null) {
+          byte[] message = "logo.png not found".getBytes(StandardCharsets.UTF_8);
+          httpExchange.sendResponseHeaders(404, message.length);
+          OutputStream os = httpExchange.getResponseBody();
+          os.write(message);
+          os.close();
+          return;
+        }
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = logo.read(chunk)) != -1) {
+          buffer.write(chunk, 0, read);
+        }
+        byte[] bytes = buffer.toByteArray();
+
+        httpExchange.getResponseHeaders().set("Content-Type", "image/png");
+        httpExchange.sendResponseHeaders(200, bytes.length);
+        OutputStream os = httpExchange.getResponseBody();
+        os.write(bytes);
+        os.close();
+      }
     }
   }
 
