@@ -82,5 +82,9 @@ local.properties
 .scala_dependencies
 .worksheet
 
+# Documentation build artifacts.
+docs/_build
+
 # Helper scripts
 build.cmd
+docker/build.cmd
